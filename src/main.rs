@@ -12,6 +12,7 @@ use models::*;
 use serde::Deserialize;
 use std::env;
 use uuid::Uuid;
+use log::{info, error};
 
 type DbPool = r2d2::Pool<ConnectionManager<PgConnection>>;
 
@@ -34,7 +35,7 @@ async fn create_user(
     };
 
     let conn = pool.get().expect("Couldn't get DB connection from pool");
-    let mut conn = conn; // Додаємо змінну для змінного посилання
+    let mut conn = conn; // Add mutable reference
 
     let user = diesel::insert_into(users::table)
         .values(&new_user)
@@ -48,7 +49,7 @@ async fn get_users(pool: web::Data<DbPool>) -> impl Responder {
     use schema::users::dsl::*;
 
     let conn = pool.get().expect("Couldn't get DB connection from pool");
-    let mut conn = conn; // Додаємо змінну для змінного посилання
+    let mut conn = conn; // Add mutable reference
 
     let results = users
         .load::<User>(&mut conn)
@@ -62,15 +63,21 @@ async fn main() -> std::io::Result<()> {
     dotenv().ok();
     env_logger::init();
 
+    info!("Starting server...");
+
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    info!("Database URL: {}", database_url);
+
     let manager = ConnectionManager::<PgConnection>::new(database_url);
     let pool = r2d2::Pool::builder()
         .build(manager)
         .expect("Failed to create pool.");
 
+    info!("Database pool created.");
+
     HttpServer::new(move || {
         App::new()
-            .app_data(web::Data::new(pool.clone())) // Оновлено до нового синтаксису
+            .app_data(web::Data::new(pool.clone()))
             .route("/users", web::post().to(create_user))
             .route("/users", web::get().to(get_users))
     })
